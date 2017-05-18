@@ -9,7 +9,7 @@
         "EnableDnsHostnames": "false",
         "Tags": [{
           "Key": "Name",
-          "Value": "CloudFormationVPC"
+          "Value": "cf-myVPC"
         }]
       }
     }
