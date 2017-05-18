@@ -1,0 +1,47 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "myVPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "EnableDnsSupport": "false",
+        "EnableDnsHostnames": "false",
+        "InstanceTenancy": "dedicated",
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-vpc"
+        }]
+      }
+    },
+    "myPublicSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "CidrBlock": "10.0.0.0/24",
+        "AvailabilityZone": "eu-central-1a",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-public-subnet"
+        }]
+      }
+    },
+    "myPrivateSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "CidrBlock": "10.0.1.0/24",
+        "AvailabilityZone": "eu-central-1b",
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-private-subnet"
+        }]
+      }
+    }
+  }
+}

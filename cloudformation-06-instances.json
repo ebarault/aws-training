@@ -1,0 +1,241 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "KeyPair": {
+      "Description": "The EC2 Key Pair to allow SSH access to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "ConstraintDescription": "must be the name of an existing EC2 KeyPair"
+    }
+  },
+  "Resources": {
+    "myVPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "EnableDnsSupport": "false",
+        "EnableDnsHostnames": "false",
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-vpc"
+        }]
+      }
+    },
+    "myPublicSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "CidrBlock": "10.0.0.0/24",
+        "AvailabilityZone": "eu-central-1a",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-public-subnet"
+        }]
+      }
+    },
+    "myPrivateSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "CidrBlock": "10.0.1.0/24",
+        "AvailabilityZone": "eu-central-1b",
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-private-subnet"
+        }]
+      }
+    },
+    "myInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-igw"
+        }]
+      }
+    },
+    "igwGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "InternetGatewayId": {
+          "Ref": "myInternetGateway"
+        }
+      }
+    },
+    "natGwEip": {
+      "DependsOn": "myVPC",
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "myNatGateway": {
+      "Type": "AWS::EC2::NatGateway",
+      "DependsOn": "igwGatewayAttachment",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": ["natGwEip", "AllocationId"]
+        },
+        "SubnetId": {
+          "Ref": "myPublicSubnet"
+        }
+      }
+    },
+    "myRtbForPublicZone": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-rtb-public"
+        }]
+      }
+    },
+    "routeToIgw": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": "igwGatewayAttachment",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "myRtbForPublicZone"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "myInternetGateway"
+        }
+      }
+    },
+    "myPublicSubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "myPublicSubnet"
+        },
+        "RouteTableId": {
+          "Ref": "myRtbForPublicZone"
+        }
+      }
+    },
+    "myRtbForPrivateZone": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-rtb-private"
+        }]
+      }
+    },
+    "routeToNatGw": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "myRtbForPrivateZone"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {
+          "Ref": "myNatGateway"
+        }
+      }
+    },
+    "myPrivateSubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "myPrivateSubnet"
+        },
+        "RouteTableId": {
+          "Ref": "myRtbForPrivateZone"
+        }
+      }
+    },
+    "mySgForSSH": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupName": "mySgForSSH",
+        "GroupDescription": "Allow SSH from anywhere",
+        "VpcId": {
+          "Ref": "myVPC"
+        },
+        "SecurityGroupIngress": [{
+          "IpProtocol": "tcp",
+          "FromPort": "22",
+          "ToPort": "22",
+          "CidrIp": "0.0.0.0/0"
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": "cf-sg-ssh"
+        }]
+      }
+    },
+    "myPublicInstance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "ImageId": "ami-b968bad6",
+        "InstanceType": "t2.micro",
+        "KeyName": {
+          "Ref": "KeyPair"
+        },
+        "SubnetId": {
+          "Ref": "myPublicSubnet"
+        },
+        "SecurityGroupIds": [{
+          "Ref": "mySgForSSH"
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": {
+            "Fn::Join": ["-", ["cf", {"Ref": "AWS::StackName"}, "instance", "public"]]
+          }
+        }]
+      }
+    },
+    "myPrivateInstance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "ImageId": "ami-b968bad6",
+        "InstanceType": "t2.micro",
+        "KeyName": {
+          "Ref": "KeyPair"
+        },
+        "SubnetId": {
+          "Ref": "myPrivateSubnet"
+        },
+        "SecurityGroupIds": [{
+          "Ref": "mySgForSSH"
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": {
+            "Fn::Join": ["-", ["cf", {"Ref": "AWS::StackName"}, "instance", "private"]]
+          }
+        }]
+      }
+    }
+  },
+  "Outputs": {
+    "PublicInstance": {
+      "Value": {
+        "Fn::GetAtt": ["myPublicInstance", "PublicIp"]
+      },
+      "Description": "Public Instance's IP address"
+    },
+    "PrivateInstance": {
+      "Value": {
+        "Fn::GetAtt": ["myPrivateInstance", "PrivateIp"]
+      },
+      "Description": "Private Instance's IP address"
+    }
+  }
+}
