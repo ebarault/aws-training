@@ -12,8 +12,8 @@
       "Type": "AWS::EC2::VPC",
       "Properties": {
         "CidrBlock": "10.0.0.0/16",
-        "EnableDnsSupport": "false",
-        "EnableDnsHostnames": "false",
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true",
         "Tags": [{
           "Key": "Name",
           "Value": "cf-myVPC"
